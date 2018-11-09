@@ -2,7 +2,6 @@
 
 This repo contains a quick analysis of the Toronto AirBnB listings.
 
-
 ### Requirements
 
 * Python (3.5+)
