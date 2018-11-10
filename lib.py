@@ -16,18 +16,26 @@ def transform_bool(col_data):
     return col_data.apply(lambda x: 0 if x == 'f' else 1)
 
 
-def string_to_numeric_series(inputs, pattern = '[$,]'):
+def string_to_numeric_series(inputs, pattern='[$,]'):
     """
     Transform a Series of string values into numberic and remove a specific
     regex pattern, e.g. "$xx.xx" becomes xx.xx
 
     Assumes the regex pattern is to remove the "$" by default
     """
-    return inputs.str.replace('[$,]', '').astype('float')
+    return inputs.str.replace(pattern, '').astype('float')
 
 
 def create_dummies_from_list_col(inputs, col, suffix, other_min = 1000):
     """
+    INPUT:
+    inputs - the dataframe containing the data
+    col - the column to transform
+    suffix - a namespace to prefix the generated dummy columns with
+    other_min - a frequency below which the category is considered other and therefore dropped
+    OUTPUT:
+    inputs - a new dataframe with the generated dummy features
+
     Cleans a column that is made up of lists, creates dummy vars for it
     """
     mlb = MultiLabelBinarizer()
@@ -36,7 +44,7 @@ def create_dummies_from_list_col(inputs, col, suffix, other_min = 1000):
         .DataFrame(mlb.fit_transform(inputs[col]), columns=mlb.classes_, index=inputs.index) \
         .add_suffix(suffix)
 
-    others = dummies.sum() < 1000
+    others = dummies.sum() < other_min
     dummies_drop_cols = others[others == True].index
     
     dummies = dummies.drop(labels=dummies_drop_cols, axis='columns')
@@ -46,7 +54,15 @@ def create_dummies_from_list_col(inputs, col, suffix, other_min = 1000):
 
 def create_dummies(inputs, col, dummy_na):
     """
-    Creates dummy vars for a specified column in a dataframe
+    INPUT:
+    inputs - the dataframe containing the data
+    col - the column to transform
+    dummy_na - a boolean to indicate weather or not to create a dummy column for na values
+    OUTPUT:
+    inputs - the dataframe along with the new dummy columns
+
+    Creates dummy vars for a specified column in a dataframe.
+    The original categorical column is dropped.
     """
     dummies_df = pd.get_dummies(inputs[col], prefix=col, prefix_sep='_', drop_first=True, dummy_na=dummy_na)
     
@@ -55,8 +71,14 @@ def create_dummies(inputs, col, dummy_na):
 
 def create_other_category(inputs, col, n_top=5):
     """
-    Given a categorial column, replace all non-common values with 'other'
+    INPUT:
+    inputs - the dataframe containing the data
+    col - the column to transform
+    n_top - the number of top categories to keep, below which all categories become 'other'
+    OUTPUT:
+    inputs - the transformed dataframe
 
+    Given a categorial column, replace all non-common values with 'other'
     The threshold to determine which values are common is provided by n_top argument.
     """
     common_types = inputs[col].value_counts().head(n_top).index.values
@@ -67,7 +89,18 @@ def create_other_category(inputs, col, n_top=5):
 
 def clean(inputs, include_dummies=True, dummy_na=False, cat_cols=[]):
     """
-    A function to clean the AirBnB listings dataframe
+    INPUT:
+    inputs - the dataframe to clean
+    include_dummies - a boolean to select if dummies should be generated or not
+    cat_cols - a list of categorical column names
+    OUTPUT:
+    df - the transformed dataframe
+
+    A function to clean the AirBnB listings dataframe.
+    The list of transformation operations:
+    1. Change numerical columns saved as strings into floats. Ex: cleaning_fee & price
+    2. Fill missing values for several columns such as 'bedrooms' and 'beds'
+    3. Generate dummy variables for categorical columns
     """
     df = inputs.copy()
     
@@ -79,8 +112,7 @@ def clean(inputs, include_dummies=True, dummy_na=False, cat_cols=[]):
     
     # transform "host_response_rate" into a numeric column, also fill missing values with mean
     if 'host_response_rate' in df.columns:
-        df.host_response_rate = string_to_number_series(df.host_response_rate, pattern='%')
-        df.host_response_rate = df.host_response_rate.fillna(df.host_response_rate.mean())
+        df.host_response_rate = string_to_numeric_series(df.host_response_rate, pattern='%')
     
     # Fill missing bedroom values
     if 'bedrooms' in df.columns:
@@ -88,6 +120,16 @@ def clean(inputs, include_dummies=True, dummy_na=False, cat_cols=[]):
 
     if 'beds' in df.columns:
         df.bedrooms = df.bedrooms.fillna(1) # assume at least one bed
+
+    # transform bool columns such that 'f' = 0 and 't' = 1
+    if 'host_is_superhost' in df.columns:
+        df.host_is_superhost = transform_bool(df.host_is_superhost).fillna(0)
+    
+    if 'instant_bookable' in df.columns:
+        df.instant_bookable = transform_bool(df.instant_bookable).fillna(0)
+    
+    if 'require_guest_phone_verification' in df.columns:
+        df.require_guest_phone_verification = transform_bool(df.require_guest_phone_verification).fillna(0)
     
     # transform the "amenities" into a column of arrays, then create dummy vals (0, 1) with many columns
     if 'amenities' in df.columns:
@@ -104,11 +146,6 @@ def clean(inputs, include_dummies=True, dummy_na=False, cat_cols=[]):
         df = create_other_category(df, col='room_type', n_top=7)
         df = create_other_category(df, col='bed_type', n_top=7)
 
-        # transform bool columns such that 'f' = 0 and 't' = 1
-        # df.host_is_superhost = transform_bool(df.host_is_superhost).fillna(0)
-        df.instant_bookable = transform_bool(df.instant_bookable).fillna(0)
-        # df.require_guest_phone_verification = transform_bool(df.require_guest_phone_verification).fillna(0)
-
         # create dummies
         for col in  cat_cols:
             df = create_dummies(df, col=col, dummy_na=dummy_na)
@@ -122,7 +159,7 @@ def clean(inputs, include_dummies=True, dummy_na=False, cat_cols=[]):
     return df
 
 
-def train_test(df, response_col='price', dummy_na=False, test_size=.3, rand_state=42, model):
+def train_test(df, model, response_col='price', dummy_na=False, test_size=.3, val_size=.1, rand_state=42):
     """
     INPUT:
     df - dataframe containing the data
@@ -143,16 +180,22 @@ def train_test(df, response_col='price', dummy_na=False, test_size=.3, rand_stat
     
     X_train, X_test, y_train, y_test = \
         train_test_split(X, y, test_size=test_size, random_state=rand_state)
+    
+    # Split the training set into training & validation sets (default: 10%)
+    X_train, X_val, y_train, y_val = \
+        train_test_split(X_train, y_train, test_size=val_size, random_state=rand_state)
 
     model.fit(X_train, y_train)
     
     train_preds = model.predict(X_train)
     test_preds = model.predict(X_test)
+    val_preds = model.predict(X_val)
     
     train_score = r2_score(y_train, train_preds)
     test_score = r2_score(y_test, test_preds)
+    val_score = r2_score(y_val, val_preds)
 
-    return test_score, train_score, X_train, X_test, y_train, y_test, test_preds
+    return test_score, train_score, val_score, X_train, X_test, X_val, y_train, y_test, y_val, test_preds, val_preds
 
 
 def coef_weights(coefficients, X_train):
@@ -175,7 +218,7 @@ def coef_weights(coefficients, X_train):
     return coefs_df
 
 
-def load_data(path = './data/toronto-listings-2018-10.csv'):
+def load_data(path):
     """
     INPUT:
     path - the path of the csv to load data from, *optional
@@ -189,21 +232,9 @@ def load_data(path = './data/toronto-listings-2018-10.csv'):
     """
     data = pd.read_csv(path)
     data.set_index('id', drop=True, inplace=True)
+    
+    return data
 
-    # Some of the columns with valuable data
-    keep_cols = [
-        "price", "neighbourhood_cleansed", "room_type", 
-        "bedrooms", "bed_type", 
-        "maximum_nights", "beds", 
-        "property_type", "amenities", 
-        "number_of_reviews", "minimum_nights",
-        "cleaning_fee", "instant_bookable",
-        "review_scores_rating", "reviews_per_month", 
-        "require_guest_phone_verification", "host_is_superhost",
-        "host_response_rate" #, "host_acceptance_rate", "weekly_price", "monthly_price",
-    ]
-    
-    # Define the categorical columns which will need dummy vars before modeling
-    cat_cols = ['property_type', 'bed_type', 'neighbourhood_cleansed', 'room_type']
-    
-    return data[keep_cols], keep_cols, cat_cols
+
+def count_missing_values(df):
+    return data.isnull().sum()
