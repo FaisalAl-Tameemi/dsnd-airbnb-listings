@@ -18,7 +18,7 @@ This repo contains a quick analysis of the Toronto AirBnB listings.
 First, you'll have to unzip the required csv files from 'data/toronto-october.zip' and place
 all the csv files into the main '/data' folder.
 
-Then run the [Jupyter (iPython) notebook]('/airbnb.ipynb) with the following command:
+Then run the [Jupyter (iPython) notebook](airbnb.ipynb) with the following command:
 
 ```
 jupyter notebook ./airbnb.ipynb
