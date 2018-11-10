@@ -2,6 +2,12 @@
 
 This repo contains a quick analysis of the Toronto AirBnB listings.
 
+The reason for creating this repository is to potentially build an application for helping Airbnb hosts price their listings in an easy and data-driven way.
+
+Imagine being a new host on Airbnb, having a tool that does the required analysis for you in terms of the neighborhood that you are in as well as information about the property, would get you up and running quickly.
+
+Another reason is curiosity about the effects of applications such as AirBnB on the city's rent prices but is outside the scope of this project.
+
 ### Requirements
 
 * Python (3.5+)
