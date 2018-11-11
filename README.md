@@ -65,4 +65,15 @@ of the usage of each function.
 
 The Medium article associated with this repository can be [found here](https://medium.com/@faisalaltameemi/airbnb-listings-analysis-in-toronto-october-2018-2a5358bae007).
 
+### Results
+
+Here is a summary of the modeling r2 scores:
+
+| Model Name                              |  Training Score | 	Validation Score | 	Test Score |
+| --------------------------------------- | --------------- | ----------------- | ----------- |
+| NaiveModel (always predicts mean price) | 	0.000000       | 	-0.000172        | 	-0.000609  |
+| RandomForestRegressor                   | 	0.711069       | 	0.487592         | 	0.489714   |
+| PLSRegression                           | 	0.459397       | 	0.445175         | 	0.432827   |
+| LinearRegression                        | 	0.534462       | 	0.488490         | 	0.487435   |
+
 Key findings and results are detailed in the article linked above.
